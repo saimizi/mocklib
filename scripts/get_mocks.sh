@@ -5,7 +5,7 @@ process_one_file() {
 
 	for f in $1
 	do
-		wrap_symbols="${wrap_symbols},$(grep -o -e "\ __wrap.*(" $f | sed "s/(/,/" | sed "s/ //g" | sed "s/__/--/" | sed "s/_/=/" | tr -d '\n')"
+		wrap_symbols="${wrap_symbols},$(grep -o -e "[\ |\n]*__wrap.*(" $f | sed "s/(/,/" | sed "s/ //g" | sed "s/__/--/" | sed "s/_/=/" | tr -d '\n')"
 	done
 
 	echo $wrap_symbols | sed "s/^,//" | sed "s/,$//"
