@@ -7,12 +7,25 @@
 #include <stdint.h>
 #include <setjmp.h>
 #include <assert.h>
+#include <string.h>
 
 // should be last
 #include <cmocka.h>
 
-int __attribute__((weak)) __wrap_open(const char *pathname, int flags)
+int __real_open(const char *pathname, int flags, int mode);
+void *__real__test_malloc(size_t size);
+void *__real__test_free(void *ptr);
+void *__real__test_calloc(size_t nmemb, size_t size);
+void *__real__test_realloc(void *ptr, size_t size);
+
+int __attribute__((weak)) __wrap_open(const char *pathname, int flags, int mode)
 {
+	if (strlen(pathname) > 5 &&
+	    !strcmp(pathname + strlen(pathname) - 5, ".gcda")) {
+		fprintf(stderr, "write gcov\n");
+		return __real_open(pathname, flags, mode);
+	}
+
 	assert_non_null(pathname);
 	assert_true(flags >= 0);
 
@@ -24,17 +37,64 @@ int __attribute__((weak)) __wrap_open(const char *pathname, int flags)
 	return ret;
 }
 
-void *__attribute__((weak)) __wrap_malloc(size_t size)
+void *__attribute__((weak)) __wrap__test_malloc(size_t size)
 {
 	assert_true(size > 0);
 
-	int check = mock_type(int);
-	if (check) {
+	bool check_size = mock_type(bool);
+	if (check_size) {
 		size_t max_size = mock_type(int);
 		assert_true(size <= max_size);
 	}
 
-	return mock_type(void *);
+	bool real_alloc = mock_type(bool);
+	if (real_alloc) {
+		return __real__test_malloc(size);
+	} else {
+		return mock_type(void *);
+	}
+}
+
+void *__attribute__((weak)) __wrap__test_calloc(size_t nmemb, size_t size)
+{
+	assert_true(size > 0);
+	assert_true(nmemb > 0);
+	bool check_size = mock_type(bool);
+	if (check_size) {
+		size_t max_size = mock_type(size_t);
+		assert_true(nmemb * size <= max_size);
+	}
+
+	bool real_alloc = mock_type(bool);
+	if (real_alloc) {
+		return __real__test_calloc(nmemb, size);
+	} else {
+		return mock_type(void *);
+	}
+}
+
+void *__attribute__((weak)) __wrap__test_realloc(void *ptr, size_t size)
+{
+
+	assert_true(size >= 0);
+
+	/* if size is 0, realloc behavior like free(ptr) */
+	if (size == 0) {
+		assert_non_null(ptr);
+	}
+
+	bool check_size = mock_type(bool);
+	if (check_size) {
+		size_t max_size = mock_type(size_t);
+		assert_true(size <= max_size);
+	}
+
+	bool real_alloc = mock_type(bool);
+	if (real_alloc) {
+		return __real__test_realloc(ptr, size);
+	} else {
+		return mock_type(void *);
+	}
 }
 
 ssize_t __attribute__((weak)) __wrap_read(int fd, void *buf, size_t count)
@@ -62,12 +122,14 @@ int __attribute__((weak)) __wrap_close(int fd)
 	return ret;
 }
 
-void __attribute__((weak)) __wrap_free(void *ptr)
+void __attribute__((weak)) __wrap__test_free(void *ptr)
 {
-	int check = mock_type(int);
+	bool check = mock_type(bool);
 	if (check) {
-		void *expted_ptr = mock_type(void *);
-		assert_true(ptr == expted_ptr);
+		void *expected_ptr = mock_type(void *);
+		assert_true(ptr == expected_ptr);
+	} else {
+		__real__test_free(ptr);
 	}
 }
 
